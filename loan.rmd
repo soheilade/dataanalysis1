@@ -1,0 +1,266 @@
+Lending Club loans 
+========================
+2,500 peer-to-peer loans issued through the Lending Club 
+(https://www.lendingclub.com/home.action). The interest rate of these loans is determined 
+by the Lending Club on the basis of characteristics of the person asking for the loan such as 
+their employment history, credit history, and creditworthiness scores. 
+The purpose of your analysis is to identify and quantify associations between the interest rate
+of the loan and the other variables in the data set. In particular, you should consider whether
+any of these variables have an important association with interest rate after taking into 
+account the applicant s FICO score. For example, if two people have the same FICO score, 
+can the other variables explain a difference in interest rate between them?
+A FICO score is a US credit rating, a measure of creditworthiness. A higher score indicates that FICO, a private credit rating agency, thinks the potential borrower is more likely to pay back their loans.
+--------
+```{r}
+library(Hmisc)
+library(stringr)
+setwd("G:/PhDcourses/dataanalysis/works/firstassignment/data")
+a<-read.csv("./loansData2.csv")
+lmstep<-lm(a$Interest.Rate~.,data=a)
+ss<-step(lmstep)
+print(date())
+ss
+#type, head and name of variables
+str(a)
+#min, max, median and quantile of variables
+summary(a)
+#finding missing values
+colSums(is.na(a))
+```
+**Exploratory analysis**
+```{r}
+hist(a$Interest.Rate,xlab="Interest.Rate")
+
+x<-data.frame(str_split_fixed(a$FICO.Range,"-",2))
+x$X1 <- as.numeric(as.character(x$X1))
+x$X2 <- as.numeric(as.character(x$X2))
+ficoMean<-rowMeans(x)
+a<- data.frame(a,ficoMean)
+anova(lm(a$Interest.Rate~a$ficoMean))
+data2<-cbind(a$Amount.Requested,a$Amount.Funded.By.Investors,a$Interest.Rate,a$Loan.Length,a$Loan.Purpose,a$Debt.To.Income.Ratio,a$State,a$Home.Ownership,a$ Monthly.Income,a$Open.CREDIT.Lines,a$Revolving.CREDIT.Balance,a$Inquiries.in.the.Last.6.,a$Employment.Length )
+#you should only use PCA when your variables were not highly correlated http://www.youtube.com/watch?v=Heh7Nv4qimU
+pairs(data2)
+requestedQuartile <- as.integer(cut(a$Amount.Requested , quantile(a$Amount.Requested , probs=0:4/4), include.lowest=TRUE))
+plot(a$Interest.Rate, a$ficoMean, col=(a$Loan.Length==36)+1, pch=19, xlab="Interest Rate (%)", ylab="FICO score")
+legend(x="topright", c("36 months", "60 months"), col=c("red", "black"), pch=c(19,19))
+####################
+plot(a$Interest.Rate, a$ficoMean, col=requestedQuartile, pch=19, xlab="Interest Rate (%)", ylab="FICO score")
+legend(x="topright", c("Amount Requested 1st quartile", "Amount Requested 2nd quartile", "Amount Requested 3rd quartile", "Amount Requested 4th quartile"), col=seq(1:4), pch=c(19,19))
+#######################
+table(a$Loan.Length)
+anova(lm(a$Interest.Rate  ~.,a))
+
+ml1<-lm(a$Interest.Rate~a$low)
+confint(ml1,level=0.95)
+plot(a$low,a$Interest.Rate,pch=19,col=as.factor(a$Loan.Length),xlab="FICO Value",ylab="Interest rate", main="fitted linear model overlayed with Interest rate based on FICO value colored by loan length")
+points(a$low,ml1$fitted,col="green",pch="-",cex=5)
+summary(ml1)
+par(mfrow = c(1, 2))
+plot(a$low,ml1$residuals,pch=19,col=as.factor(a$Loan.Length),xlab="FICO Value",ylab="model residual")
+plot(ml1$fitted,ml1$residuals,pch=19,col=as.factor(a$Loan.Length),xlab="fitted values",ylab="model residual")
+#color by Debt.To.Income.Ratio
+incut = cut2(a$Debt.To.Income.Ratio, g = 5)
+par(mfrow = c(1, 2))
+plot(a$low,ml1$residuals,pch=19,col=incut)
+plot(ml1$fitted,ml1$residuals,pch=19,col=incut)
+
+#this shows that the higher FICO range the lower interst rate. the interst rate distribution in higher FICO range has smaller quantile interval meaning lower variance and more skewd. the interst rate distribution in lower FICO range has larger quantile interval meaning higher variance. the number of people with high FICO is also wery low. also the loan.length is a good seprator so it worth adding it to model.
+
+ml2<-lm(a$Interest.Rate~a$low+as.factor(a$Loan.Length))
+summary(ml2)
+confint(ml2,level=0.95)
+par(mfrow = c(1, 2))
+plot(a$low,ml2$residuals,pch=19,col=as.factor(a$Loan.Length))
+plot(ml2$fitted,ml1$residuals,pch=19,col=as.factor(a$Loan.Length))
+############color by Debt.To.Income.Ratio
+incut = cut2(a$Debt.To.Income.Ratio, g = 5)
+par(mfrow = c(1, 2))
+plot(a$low,ml2$residuals,pch=19,col=incut)
+plot(ml2$fitted,ml1$residuals,pch=19,col=incut)
+############
+
+plot(a$Interest.Rate~jitter(as.numeric(a$Loan.Length)),col="green",xaxt="n")
+axis(side=1,at=unique(as.numeric(as.factor(a$Loan.Length))),lables=unique(as.factor(a$Loan.Length)))
+meanIR<-tapply(a$Interest.Rate,a$Loan.Length,mean)
+str(meanIR)
+points(1:length(meanIR),meanIR,col="red",pch="-",cex=5)
+
+hist(a$Amount.Requested,breaks=100)
+quantile(a$Amount.Requested)
+boxplot(a$Amount.Requested~a$Home.Ownership,varwidth=TRUE)
+#Monthly.Income
+hist(a$Monthly.Income,breaks=10)
+quantile(a$Monthly.Income)
+boxplot(a$Monthly.Income)
+#Open.CREDIT.Lines
+hist(a$Open.CREDIT.Lines)
+quantile(a$Open.CREDIT.Lines)
+boxplot(a$Open.CREDIT.Lines)
+#Revolving.CREDIT.Balance
+hist(a$Revolving.CREDIT.Balance)
+quantile(a$Revolving.CREDIT.Balance)
+boxplot(a$Revolving.CREDIT.Balance)
+#Inquiries.in.the.Last.6.Months
+hist(a$Inquiries.in.the.Last.6.Months,breaks=100)
+quantile(a$Inquiries.in.the.Last.6.Months)
+boxplot(a$Inquiries.in.the.Last.6.Months)
+
+```
+**univariate tables **
+```{r}
+table(a$Loan.Purpose)
+table(a$State)
+table(a$Home.Ownership)
+table(a$Loan.Length)
+hist(a$Debt.To.Income.Ratio)
+hist(a$Interest.Rate)
+table(a$FICO.Range)
+table(a$Employment.Length)
+```
+**correlations plot**
+```{r}
+boxplot(a$Interest.Rate~a$FICO.Range,varwidth=TRUE)
+plot(a$Interest.Rate,a$Debt.To.Income.Ratio,col=a$Home.Ownership)
+plot(a$Interest.Rate,a$Debt.To.Income.Ratio,col=a$FICO.Range)
+#plot(a$Interest.Rate,a$)
+```
+**principal component analysis**
+```{r}
+#first spcify the variable you want to predict and if it is not a factor, cut it into intervals coerce factros
+numericIR<-as.numeric(as.factor(cut2(a$Interest.Rate,g=5)))
+#since FICO range "660-664" has 125 individual, we diecided to do PCA on that and choose the best column who seprated columns well but it seems that none of the columns is a good seprator ....
+plot(a[a$FICO.Range=="660-664",6],pch=19,cex=5,col=numericIR)
+#here we have all the entries in the x axis and if we can find a column that at least seprate colors into 2 or more groups horizontally then that variable is usefull to classify those color groups. but unfortunatly no one is useful here. so we may try SVD
+colSums(is.na(a))
+which(is.na(a[,9]))
+which(is.na(a[,11]))
+which(is.na(a[,12]))
+which(is.na(a[,13]))
+
+b<-a[-c(367,1595),]
+colSums(is.na(b))
+svd1<-svd(scale(b[b$FICO.Range=="665-669",-c(3,5,7,8,10,14)]))
+
+#svd1=svd(scale(a[,-c(3,5,7,8,10,14)]))
+plot(svd1$u[,1],col=numericIR,pch=19)
+plot(svd1$u[,3],col=numericIR,pch=19)
+#according to the plots svds also are unable to diffrentiate among intervals for IR :-(
+
+lm1<-lm(a$Interest.Rate~a$Amount.Requested)
+lm1
+plot(a$Amount.Requested,a$Interest.Rate,col=as.numeric(a$FICO.Range),pch=19)
+points(a$Amount.Requested,lm1$fitted,col="red")
+plot(a$Amount.Requested,lm1$residuals,col=as.numeric(a$FICO.Range),pch=19)
+plot(lm1$fitted,lm1$residuals,col=as.numeric(a$FICO.Range),pch=19)
+
+###########Monthly.Income
+milog<-log(a[!is.na(a$Monthly.Income),c("Monthly.Income")]+1)
+lm2<-lm(a$Interest.Rate~a$Monthly.Income)
+lm2
+plot(log(a$Monthly.Income),a$Interest.Rate)#,col=as.numeric(a$FICO.Range),pch=19)
+points(milog,lm2$fitted,col="red")
+plot(milog,lm2$residuals,col=as.numeric(a$FICO.Range),pch=19)
+plot(log(lm2$fitted+1),lm2$residuals,col=as.numeric(a$FICO.Range),pch=19)
+##############
+###########Loan.Length
+ccc<-a[a$FICO.Range=="665-669",]
+boxplot(ccc$Interest.Rate~ccc$Loan.Length,xlab="loan length in month",ylab="intertest rate")
+boxplot(a$Interest.Rate~a$Loan.Purpose,xlab="loan purpose",ylab="intertest rate")
+#this shows that loan length is a very good indiicator for interst rate.
+lm3<-lm(a$Interest.Rate~as.numeric(as.factor(a$FICO.Range)))
+lm3
+plot(as.numeric(as.factor(a$FICO.Range)),a$Interest.Rate,col=as.factor(a$Loan.Length),pch=19)
+points(as.numeric(as.factor(a$FICO.Range)),lm3$fitted,col="red")
+plot(as.numeric(as.factor(a$FICO.Range)),lm3$residuals,col=as.factor(a$Loan.Length),pch=19)
+plot(lm3$fitted,lm1$residuals,col=as.factor(a$Loan.Length),pch=19)
+#plots are representative that loan length is totally 
+lmf<-lm(a$Interest.Rate~a$low)
+summary(lmf)
+confint(lmf)
+plot(a$FICO, lmf$residuals, pch = 19, col=as.factor(a$Loan.Purpose))
+plot(lmf$fitted, lmf$residuals, pch = 19, col = as.factor(a$Loan.Purpose))
+
+######
+lmm<-lm(a$Interest.Rate~as.factor(a$Loan.Length))
+summary(lmm)
+confint(lmm)
+plot(a$FICO, lmf$residuals, pch = 19, col=as.factor(a$Loan.Purpose))
+plot(lmf$fitted, lmf$residuals, pch = 19, col = as.factor(a$Loan.Purpose))
+##################
+plot(a$Interest.Rate,a$Open.CREDIT.Lines)
+plot(a$Interest.Rate,a$Revolving.CREDIT.Balance)
+plot(a$Interest.Rate,a$Inquiries.in.the.Last.6.Months)
+#plot(a$Interest.Rate,a$)
+#plot(a$Interest.Rate,a$)
+```
+**regression with factor variable**
+```{r}
+#modeling IR based on FICO
+factorlm<-lm(a$Interest.Rate~as.factor(a$FICO.Range))
+confint(factorlm)
+#as we can see the confidance interval for difference among "640-644" FICO and first 12 FICO rating covers 0 so there is no big difference among IR of "640-644" and first other 12 FICO rating.
+summary(factorlm)
+#computing anova will help us to understand if IR is associated with FICO at any level.
+#anova is the most common approach to determin how factor variable is assiciated with the quantitative variables
+anova(factorlm)
+#the realtion among FICO-range and Intesrt rate is statistically significant according to p value reported and high f-value(meaning that )
+#to plot all possible differences between pairs of factor levels we use Tukey
+lmtuk<-aov(a$Interest.Rate~as.factor(a$FICO.Range))
+TukeyHSD(lmtuk)
+################
+#modeling IR based on home ownership
+flm<-lm(a$Interest.Rate~as.factor(a$Home.Ownership))
+confint(flm)
+#as we can see the confidance interval for IR difference among "MORTGAGE" and all others except "RENT" covers 0 so there is no big difference among IR of "MORTGAGE" and others except "RENT"
+summary(flm)
+#computing anova will help us to understand if IR is associated with homeownership at any level.
+#anova is the most common approach to determin how factor variable is assiciated with the quantitative variables
+anova(flm)
+#the realtion among home-ownership and IR is statistically significant according to p value reported but f-value is not that high
+#to plot all possible differences between pairs of ownership levels we use Tukey
+lmt<-aov(a$Interest.Rate~as.factor(a$Home.Ownership))
+TukeyHSD(lmt)
+##########
+#**Loan.Purpose**
+#modeling IR based on Loan.Purpose
+flmp<-lm(a$Interest.Rate~as.factor(a$Loan.Purpose))
+confint(flmp)
+#those confidance intervals who covers 0 is not that different from car loan
+summary(flmp)
+#computing anova will help us to understand if IR is associated with loan purpose at any level.
+#anova is the most common approach to determin how factor variable is assiciated with the quantitative variables
+anova(flmp)
+#the realtion among loan purpose and IR is statistically significant according to p value reported but f-value is not that high
+#to plot all possible differences between pairs of loans' purposes levels we use Tukey
+lmt<-aov(a$Interest.Rate~as.factor(a$Loan.Purpose))
+TukeyHSD(lmt)
+##########
+```
+**multiple regression with factor variable**
+```{r}
+plot(a$Interest.Rate,a$Monthly.Income,col=as.factor(a$FICO.Range),pch=19)
+#looks weired , lets try transform by log :)
+logIncome<-log(a$Monthly.Income)
+plot(a$Interest.Rate,logIncome,col=as.factor(a$FICO.Range),pch=19)
+#it doesn't seem there is a direct relation among those variables
+lm<-lm(a$Interest.Rate~a$Monthly.Income)
+summary(lm)
+#our factor variable have multiple values so
+
+
+```
+**modeling FICO value**
+```{r}
+plot(a$low,log(a$Monthly.Income),pch=19,col="blue")
+plot(a$low,a$Open.CREDIT.Lines,pch=19,col="blue")
+plot(a$low,log(a$Revolving.CREDIT.Balance),pch=19,col="blue")
+plot(a$low,a$Inquiries.in.the.Last.6.,pch=19,col="blue")
+boxplot(a$low~a$Employment.Length)
+boxplot(a$low~a$State)
+boxplot(a$low,a$Home.Ownership)
+hist(a$low,xlab="FICO value",main="histogram of FICO value")
+     str(a[a$low<700,])
+str(a[a$low>725,])
+quantile(a$low)
+
+```
